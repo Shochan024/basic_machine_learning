@@ -1,4 +1,5 @@
 from svm import SVM
+from sklearn import datasets
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,7 +8,16 @@ import matplotlib.pyplot as plt
 データセットを作成
 """
 # データセットを作成
-N = 300
+"""
+#線形分離不可能なデータセット
+iris = datasets.load_iris()
+X = iris.data[:,:2]
+Y = (iris.target != 0) * 2 - 1
+"""
+
+
+#線形分離可能なデータセット
+N = 100
 x1_1 = np.ones( N ) + 10 * np.random.random( N )
 x1_2 = np.ones( N ) + 10 * np.random.random( N )
 x2_1 = -np.ones( N ) -10 * np.random.random( N )
@@ -20,9 +30,11 @@ x2 = np.c_[ x2_1 , x2_2 ]
 X = np.array( np.r_[ x1 , x2 ] )
 Y = np.array( np.r_[ np.ones( N ) , -np.ones( N ) ] )
 
+
+
 """
 学習
 """
 svm = SVM( observe_mode=True )
-svm.fit( X , Y , max_epochs=10 )
+svm.fit( X , Y , max_epochs=1000 )
 svm.observe( save_path="./graphs/hardmargin.gif" )

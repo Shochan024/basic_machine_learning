@@ -1,4 +1,5 @@
 #!-*-coding:utf-8-*-
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -15,7 +16,7 @@ class SVM:
         self.b = None
         self.P = None
         self.y_hat = None
-        self.fig = None
+        self.fig = plt.figure()
         self.observe_mode = observe_mode
         self.ims = []
 
@@ -23,22 +24,24 @@ class SVM:
         self.w = np.zeros( X.shape[1] ) # 特徴行列の列数が変数の数
         self.b = 0
         self.P = np.zeros( X.shape[0] )
-        self.y_hat = Y * np.dot( X , self.w ) + self.b
         for count in range( int( max_epochs ) ):
+            self.y_hat = Y * np.dot( X , self.w ) + self.b
             condition = self.__kkt( X , Y )
-            if len( condition ) <=0:
+            if len( condition[0] ) <=0:
                 break
             i , j = self.__lambda_choice( Y , condition ) #2つのλの添字を取得。λ自体ではなく添字を取得した方があとで再利用性が高いから
             self.__optimize( i , j , X , Y )
             if self.observe_mode:
                 print( "{}回目の学習 # w:{} b:{}".format( count , self.w , self.b ) )
+                print( "KKT条件に違反するλ # λ:{}".format( condition[0] ) )
+                print( "\n" )
 
 
     def predict( self ):
         pass
 
     def observe( self , save_path = "" ):
-        ani = animation.ArtistAnimation( self.fig , self.ims , interval=1000)
+        ani = animation.ArtistAnimation( self.fig , self.ims , interval=200)
         if save_path == "":
             print( "save_pathに保存先のパスを指定してください" )
             sys.exit()
@@ -53,7 +56,7 @@ class SVM:
     def __kkt( self , X , Y ):
         # Karush-Kuhn-Tucker条件に違反するラグランジュ係数Pを選択する
         P , Y = self.P.reshape( -1 ) , Y.reshape( -1 )
-        condition = self.P * self.y_hat #np.dot()は内積、*はアダマール積
+        condition = self.P * ( Y * ( self.y_hat ) - 1 ) #np.dot()は内積、*はアダマール積
 
         return np.where( condition == 0 )
 
@@ -90,17 +93,24 @@ class SVM:
         self.w = w_
         self.b = b_ / Y.shape[ 0 ]
         self.P = P
-
         self.__observe( X , Y )
+
+    def __div_line( self , x ):
+        return ( -x*self.w[0] - self.b ) / self.w[1]
 
     def __observe( self , X , Y ):
         if self.observe_mode:
-            self.fig = plt.figure()
             if X.ndim == 2:
-                x = np.arange( np.min( X ) , np.max( X ) , 0.1 )
-                y = ( -x*self.w[0] - self.b ) / self.w[1]
+                plt.cla()
+                x = np.arange( np.min( X[:,0] ) , np.max( X[:,0] ) , 0.1 )
+                y = self.__div_line( x )
+                plt.xlim( np.min( X[:,0] ) * 1.5 , np.max( X[:,0] ) * 1.5 )
+                plt.ylim( np.min( X[:,1]  * 1.5) , np.max( X[:,1] ) * 1.5 )
                 plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue', label='-1' )
                 plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown', label='1' )
+                plt.ylabel("x2")
+                plt.xlabel("x1")
+                plt.title( "SVM" )
                 plt.legend()
                 self.ims.append( plt.plot( x , y ) )
             elif X.ndim == 3:
