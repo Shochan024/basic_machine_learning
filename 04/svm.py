@@ -5,16 +5,17 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 
-class SVM:
+class LinearSVM:
     """
     共通メソッド
     - ルール
       プログラム上でギリシャ文字が扱えないことと、lambdaは予約語であるのでλをPとおいて記述する
     """
-    def __init__( self , observe_mode=False ):
+    def __init__( self , observe_mode=False , C=0 ):
         self.w = None
         self.b = None
         self.P = None
+        self.C = C
         self.y_hat = None
         self.fig = plt.figure()
         self.observe_mode = observe_mode
@@ -24,6 +25,15 @@ class SVM:
         self.w = np.zeros( X.shape[1] ) # 特徴行列の列数が変数の数
         self.b = 0
         self.P = np.zeros( X.shape[0] )
+        x1_plus = ( np.min( X[:,0] ) + np.max( X[:,0] ) ) * 0.25
+        x2_plus = ( np.min( X[:,1] ) + np.max( X[:,1] ) ) * 0.25
+        plt.xlim( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus )
+        plt.ylim( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus )
+        plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
+        plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
+        plt.ylabel("x2")
+        plt.xlabel("x1")
+        plt.title( "SVM" )
         for count in range( int( max_epochs ) ):
             self.y_hat = Y * np.dot( X , self.w ) + self.b
             condition = self.__kkt( X , Y )
@@ -80,14 +90,16 @@ class SVM:
         x1_square = np.dot( X[ i ] , X[ i ].T )
         x1x2 = np.dot( X[i] , X[j].T )
         x2_square = np.dot( X[ j ] , X[ j ].T )
-        P[ i ] += ( Y[ i ] * ( E[ j ] - E[ i ] ) ) / ( x1_square + x1x2 + x2_square )
-        P[ j ] += Y[ i ] * Y[ j ] * ( self.P[ i ] - P[ i ] )
+        P_i_delta = self.__clip( i , j , Y , Y[ i ] * ( E[ j ] - E[ i ] ) / ( x1_square + x1x2 + x2_square ) )
+        P_j_delta = Y[ i ] * Y[ j ] * ( self.P[ i ] - P_i_delta )
+        P[ i ] += P_i_delta
+        P[ j ] += P_j_delta
         w_ , b_ = 0 , 0
         for n in range( Y.shape[ 0 ] ):
             w_ += P[ n ] * Y[ n ] * X[ n ]
             tmp_ = 0
             for m in range( Y.shape[ 0 ] ): #mはサポートベクトルの数に変えなければならない
-                tmp_ +=P[ m ] * Y[ m ]* np.dot( X[ m ] , X[ n ].T )
+                tmp_ += P[ m ] * Y[ m ] * np.dot( X[ m ] , X[ n ].T )
             b_ += Y[ n ] - tmp_
 
         self.w = w_
@@ -96,22 +108,30 @@ class SVM:
         self.__observe( X , Y )
 
     def __div_line( self , x ):
-        return ( -x*self.w[0] - self.b ) / self.w[1]
+        return ( -x * self.w[0] - self.b ) / self.w[1]
+
+    def __clip( self , i , j , Y , P_del ):
+        P = self.P
+        if Y[i] == Y[j]:
+            L = max( 0 , P[i] + P[j] - self.C )
+            H = max( self.C , P[i] + P[j] )
+        else:
+            L = max( 0 , P[j] - P[i] )
+            H = min( self.C , self.C - P[j] + P[i] )
+
+        if P_del > H:
+            P_del = H
+        elif L > P_del:
+            P_del = L
+
+        return P_del
 
     def __observe( self , X , Y ):
         if self.observe_mode:
             if X.ndim == 2:
-                plt.cla()
                 x = np.arange( np.min( X[:,0] ) , np.max( X[:,0] ) , 0.1 )
                 y = self.__div_line( x )
-                plt.xlim( np.min( X[:,0] ) * 1.5 , np.max( X[:,0] ) * 1.5 )
-                plt.ylim( np.min( X[:,1]  * 1.5) , np.max( X[:,1] ) * 1.5 )
-                plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue', label='-1' )
-                plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown', label='1' )
-                plt.ylabel("x2")
-                plt.xlabel("x1")
-                plt.title( "SVM" )
                 plt.legend()
-                self.ims.append( plt.plot( x , y ) )
+                self.ims.append( plt.plot( x , y , color="lightskyblue" ) )
             elif X.ndim == 3:
                 pass
