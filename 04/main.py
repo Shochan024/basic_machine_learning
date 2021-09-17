@@ -37,6 +37,6 @@ Y = np.array( np.r_[ np.ones( N ) , -np.ones( N ) ] )
 """
 学習
 """
-svm = LinearSVM( observe_mode=True , C=30 )
+svm = LinearSVM( observe_mode=True , C=10 )
 svm.fit( X , Y , max_epochs=300 )
 svm.observe( save_path="./graphs/hardmargin.gif" )

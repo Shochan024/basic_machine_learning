@@ -25,15 +25,6 @@ class LinearSVM:
         self.w = np.zeros( X.shape[1] ) # 特徴行列の列数が変数の数
         self.b = 0
         self.P = np.zeros( X.shape[0] )
-        x1_plus = ( np.min( X[:,0] ) + np.max( X[:,0] ) ) * 0.25
-        x2_plus = ( np.min( X[:,1] ) + np.max( X[:,1] ) ) * 0.25
-        plt.xlim( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus )
-        plt.ylim( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus )
-        plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
-        plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
-        plt.ylabel("x2")
-        plt.xlabel("x1")
-        plt.title( "SVM" )
         for count in range( int( max_epochs ) ):
             self.y_hat = Y * np.dot( X , self.w ) + self.b
             condition = self.__kkt( X , Y )
@@ -128,9 +119,18 @@ class LinearSVM:
 
     def __observe( self , X , Y ):
         if self.observe_mode:
+            x1_plus = ( np.min( X[:,0] ) + np.max( X[:,0] ) ) * 0.25
+            x2_plus = ( np.min( X[:,1] ) + np.max( X[:,1] ) ) * 0.25
             if X.ndim == 2:
                 x = np.arange( np.min( X[:,0] ) , np.max( X[:,0] ) , 0.1 )
                 y = self.__div_line( x )
+                plt.xlim( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus )
+                plt.ylim( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus )
+                plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
+                plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
+                plt.ylabel("x2")
+                plt.xlabel("x1")
+                plt.title( "SVM" )
                 plt.legend()
                 self.ims.append( plt.plot( x , y , color="lightskyblue" ) )
             elif X.ndim == 3:
