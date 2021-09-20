@@ -17,6 +17,7 @@ class LinearSVM:
         self.P = None
         self.C = C
         self.y_hat = None
+        self.support_vectors_ = None
         self.fig = plt.figure()
         self.observe_mode = observe_mode
         self.ims = []
@@ -26,23 +27,26 @@ class LinearSVM:
         self.b = 0
         self.P = np.zeros( X.shape[0] )
         for count in range( int( max_epochs ) ):
+            self.support_vectors_ = np.where( ( np.dot( X , self.w ) + self.b - 1 ) / np.linalg.norm( self.w ) )
             self.y_hat = Y * np.dot( X , self.w ) + self.b
-            condition = self.__kkt( X , Y )
+            condition = self._kkt( X , Y )
             if len( condition[0] ) <=0:
                 break
-            i , j = self.__lambda_choice( Y , condition ) #2つのλの添字を取得。λ自体ではなく添字を取得した方があとで再利用性が高いから
-            self.__optimize( i , j , X , Y )
+            i , j = self._lambda_choice( Y , condition ) #2つのλの添字を取得。λ自体ではなく添字を取得した方があとで再利用性が高いから
+            self._optimize( i , j , X , Y )
+            print( "{}回目の学習 # w:{} b:{}".format( count , self.w , self.b ) )
+            print( "KKT条件に違反するλ # λ:{}".format( condition[0] ) )
+            print( "\n" )
             if self.observe_mode:
-                print( "{}回目の学習 # w:{} b:{}".format( count , self.w , self.b ) )
-                print( "KKT条件に違反するλ # λ:{}".format( condition[0] ) )
-                print( "\n" )
+                plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
+                plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
 
 
     def predict( self ):
         pass
 
     def observe( self , save_path = "" ):
-        ani = animation.ArtistAnimation( self.fig , self.ims , interval=200)
+        ani = animation.ArtistAnimation( self.fig , self.ims , interval=200 )
         if save_path == "":
             print( "save_pathに保存先のパスを指定してください" )
             sys.exit()
@@ -54,34 +58,32 @@ class LinearSVM:
     専用メソッド
     """
 
-    def __kkt( self , X , Y ):
-        # Karush-Kuhn-Tucker条件に違反するラグランジュ係数Pを選択する
-        P , Y = self.P.reshape( -1 ) , Y.reshape( -1 )
-        condition = self.P * ( Y * ( self.y_hat ) - 1 ) #np.dot()は内積、*はアダマール積
+    def _observe( self , X , Y ):
+        if self.observe_mode:
+            x1_plus = ( np.min( X[:,0] ) + np.max( X[:,0] ) ) * 0.25
+            x2_plus = ( np.min( X[:,1] ) + np.max( X[:,1] ) ) * 0.25
+            if X.ndim == 2:
+                x = np.arange( np.min( X[:,0] ) , np.max( X[:,0] ) , 0.1 )
+                y = self._div_line( x )
+                plt.xlim( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus )
+                plt.ylim( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus )
+                plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
+                plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
+                plt.ylabel("x2")
+                plt.xlabel("x1")
+                plt.title( "SVM" )
+                plt.legend()
+                self.ims.append( plt.plot( x , y , color="lightskyblue" ) )
+            elif X.ndim == 3:
+                pass
 
-        return np.where( condition == 0 )
-
-    def __lambda_choice( self , Y , condition ):
-        # KKT条件に違反する二つのλをランダムに選択
-        P = self.P
-        i = np.random.choice( condition[0] , 1 , replace=True )[0] #一つ目のλの添字を選択
-        E = self.__E( Y )
-        E_delta = E - E[ i ] #iの誤差との差が最大になるようなp<λ>jを選択
-        j = np.argmax( E_delta )
-
-        return i , j
-
-    def __E( self , Y ):
-        # 予測結果と教師データの差分を求める
-        return self.y_hat - Y
-
-    def __optimize( self , i , j , X , Y ):
+    def _optimize( self , i , j , X , Y ):
         # 重みの更新
-        P , E = self.P , self.__E( Y )
+        P , E = self.P , self._E( Y )
         x1_square = np.dot( X[ i ] , X[ i ].T )
         x1x2 = np.dot( X[i] , X[j].T )
         x2_square = np.dot( X[ j ] , X[ j ].T )
-        P_i_delta = self.__clip( i , j , Y , Y[ i ] * ( E[ j ] - E[ i ] ) / ( x1_square + x1x2 + x2_square ) )
+        P_i_delta = self._clip( i , j , Y , Y[ i ] * ( E[ j ] - E[ i ] ) / ( x1_square + x1x2 + x2_square ) )
         P_j_delta = Y[ i ] * Y[ j ] * ( self.P[ i ] - P_i_delta )
         P[ i ] += P_i_delta
         P[ j ] += P_j_delta
@@ -96,12 +98,33 @@ class LinearSVM:
         self.w = w_
         self.b = b_ / Y.shape[ 0 ]
         self.P = P
-        self.__observe( X , Y )
+        self._observe( X , Y )
 
-    def __div_line( self , x ):
+    def _kkt( self , X , Y ):
+        # Karush-Kuhn-Tucker条件に違反するラグランジュ係数Pを選択する
+        P , Y = self.P.reshape( -1 ) , Y.reshape( -1 )
+        condition = self.P * ( Y * ( self.y_hat ) - 1 ) #np.dot()は内積、*はアダマール積
+
+        return np.where( condition == 0 )
+
+    def _lambda_choice( self , Y , condition ):
+        # KKT条件に違反する二つのλをランダムに選択
+        P = self.P
+        i = np.random.choice( condition[0] , 1 , replace=True )[0] #一つ目のλの添字を選択
+        E = self._E( Y )
+        E_delta = E - E[ i ] #iの誤差との差が最大になるようなp<λ>jを選択
+        j = np.argmax( E_delta )
+
+        return i , j
+
+    def _E( self , Y ):
+        # 予測結果と教師データの差分を求める
+        return self.y_hat - Y
+
+    def _div_line( self , x ):
         return ( -x * self.w[0] - self.b ) / self.w[1]
 
-    def __clip( self , i , j , Y , P_del ):
+    def _clip( self , i , j , Y , P_del ):
         P = self.P
         if Y[i] == Y[j]:
             L = max( 0 , P[i] + P[j] - self.C )
@@ -117,21 +140,63 @@ class LinearSVM:
 
         return P_del
 
-    def __observe( self , X , Y ):
+
+class kernelSVM( LinearSVM ):
+    def __init__( self , kernel , observe_mode=False , C=0 ):
+        super().__init__( observe_mode , C )
+        self.kernel = kernel
+
+    def predict( self , X_train , Y_train , X ):
+        kernel = self.kernel
+        P , b = self.P , self.b
+        Y = np.zeros( X.shape[ 0 ] )
+        for i in range( X.shape[ 0 ] ):
+            pred_ = 0
+            for j in self.support_vectors_[0]:
+                pred_ += P[ j ] * Y_train[ j ] * kernel( X_train[ j ] , X[ i ] ) + b
+            Y[ i ] = pred_
+
+        return Y
+
+    def _observe( self , X , Y ):
         if self.observe_mode:
             x1_plus = ( np.min( X[:,0] ) + np.max( X[:,0] ) ) * 0.25
             x2_plus = ( np.min( X[:,1] ) + np.max( X[:,1] ) ) * 0.25
             if X.ndim == 2:
-                x = np.arange( np.min( X[:,0] ) , np.max( X[:,0] ) , 0.1 )
-                y = self.__div_line( x )
+                x = np.arange( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus , 0.5 )
+                y = np.arange( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus , 0.5 )
+                xx , yy = np.meshgrid( x , y )
+                z = self._div_line( X , Y , xx , yy ).reshape( xx.shape )
                 plt.xlim( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus )
                 plt.ylim( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus )
-                plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
-                plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
-                plt.ylabel("x2")
-                plt.xlabel("x1")
-                plt.title( "SVM" )
-                plt.legend()
-                self.ims.append( plt.plot( x , y , color="lightskyblue" ) )
+                im = plt.contourf( xx , yy , z , alpha=0.8 )
+                add_anim = im.collections
+                self.ims.append( add_anim )
             elif X.ndim == 3:
                 pass
+
+    def _optimize( self , i , j , X , Y ):
+        # 重みの更新
+        kernel = self.kernel
+        P , E = self.P , self._E( Y )
+        P_i_delta = self._clip( i , j , Y , Y[ i ] * ( E[ j ] - E[ i ] ) / ( kernel( X[ i ] , X[ i ] ) + kernel( X[ j ] , X[ j ] ) - 2 * kernel( X[ i ] , X[ j ] ) ) )
+        P_j_delta = Y[ i ] * Y[ j ] * ( self.P[ i ] - P_i_delta )
+        P[ i ] += P_i_delta
+        P[ j ] += P_j_delta
+        w_ , b_ = 0 , 0
+        for n in range( Y.shape[ 0 ] ):
+            w_ += P[ n ] * Y[ n ] * X[ n ]
+            tmp_ = 0
+            for m in self.support_vectors_[0]: #mはサポートベクトルの数に変えなければならない
+                tmp_ += P[ m ] * Y[ m ] * kernel( X[ m ] , X[ n ] )
+            b_ += Y[ n ] - tmp_
+
+        self.w = w_
+        self.b = b_ / len( self.support_vectors_[0] )
+        self.P = P
+        self._observe( X , Y )
+
+    def _div_line( self , X , Y , xx , yy ):
+        pred_x = np.c_[ xx.ravel() , yy.ravel() ]
+        y = self.predict( X , Y , pred_x ).reshape( xx.shape )
+        return y

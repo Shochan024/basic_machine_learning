@@ -1,4 +1,5 @@
-from svm import LinearSVM
+from svm import LinearSVM , kernelSVM
+from kernels import gausKernel , RBF
 from sklearn import datasets
 import sys
 import numpy as np
@@ -9,12 +10,18 @@ import matplotlib.pyplot as plt
 """
 # データセットを作成
 
-
+"""
 #線形分離不可能なデータセット
 iris = datasets.load_iris()
 X = iris.data[:,:2]
-Y = (iris.target != 0) * 2 - 1
+Y = (iris.target != 0)  * 2 - 1
+"""
 
+
+#カーネル法を用いないと分類できないもの
+moon = datasets.make_moons( n_samples=300 , noise=0.2 , random_state=0 )
+X = moon[0]
+Y = moon[1] * 2 - 1
 
 
 """
@@ -37,6 +44,8 @@ Y = np.array( np.r_[ np.ones( N ) , -np.ones( N ) ] )
 """
 学習
 """
-svm = LinearSVM( observe_mode=True , C=10 )
-svm.fit( X , Y , max_epochs=300 )
+kernel = RBF( gamma=0.01 )
+#svm = LinearSVM( observe_mode=True , C=10 )
+svm = kernelSVM( observe_mode=True , C=10 , kernel=kernel )
+svm.fit( X , Y , max_epochs=50 )
 svm.observe( save_path="./graphs/hardmargin.gif" )
