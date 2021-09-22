@@ -44,8 +44,7 @@ Y = np.array( np.r_[ np.ones( N ) , -np.ones( N ) ] )
 """
 学習
 """
-kernel = RBF( gamma=0.01 )
 #svm = LinearSVM( observe_mode=True , C=10 )
-svm = kernelSVM( observe_mode=True , C=10 , kernel=kernel )
-svm.fit( X , Y , max_epochs=50 )
-svm.observe( save_path="./graphs/hardmargin.gif" )
+svm = kernelSVM( kernel=RBF( gamma=0.2 ) , C=1.0 )
+svm.fit( X , Y , max_epochs=200 )
+svm.observe( save_path="./graphs/kernelSVC.gif" )

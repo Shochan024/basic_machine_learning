@@ -10,4 +10,13 @@ class RBF:
         self.gamma = gamma
 
     def __call__( self , X1 , X2 ):
-        return np.exp( - self.gamma * np.sum( ( X1 - X2.T ) ** 2 ) )
+        if ( X1.ndim == 1 and X2.ndim == 1 ):
+            tmp_ = np.sum( ( X1 - X2.T ) ** 2 )
+        elif ( ( X1.ndim == 1 and  X2.ndim != 1 ) or ( X1.ndim != 1 and  X2.ndim == 1 ) ):
+            tmp_ = np.linalg.norm( X1 - X2 , axis=1 ) ** 2
+        else:
+            tmp_ = np.reshape( np.sum( X1**2 , axis=1 ), ( len( X1 ), 1) ) + np.sum( X2**2 , axis=1 )  -2 * ( X1 @ X2.T )
+
+        K = np.exp( - tmp_ / ( 2*self.gamma**2 ) )
+
+        return K

@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-
+np.set_printoptions( precision=10 , floatmode='fixed' )
 
 class LinearSVM:
     """
@@ -26,9 +26,10 @@ class LinearSVM:
         self.w = np.zeros( X.shape[1] ) # 特徴行列の列数が変数の数
         self.b = 0
         self.P = np.zeros( X.shape[0] )
+        self.X , self.Y = X , Y
         for count in range( int( max_epochs ) ):
             self.support_vectors_ = np.where( ( np.dot( X , self.w ) + self.b - 1 ) / np.linalg.norm( self.w ) )
-            self.y_hat = Y * np.dot( X , self.w ) + self.b
+            self.y_hat = self.predict( X , Y )
             condition = self._kkt( X , Y )
             if len( condition[0] ) <=0:
                 break
@@ -42,8 +43,8 @@ class LinearSVM:
                 plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
 
 
-    def predict( self ):
-        pass
+    def predict( self , X , Y=None ):
+        return Y * np.dot( X , self.w ) + self.b
 
     def observe( self , save_path = "" ):
         ani = animation.ArtistAnimation( self.fig , self.ims , interval=200 )
@@ -141,62 +142,84 @@ class LinearSVM:
         return P_del
 
 
-class kernelSVM( LinearSVM ):
-    def __init__( self , kernel , observe_mode=False , C=0 ):
-        super().__init__( observe_mode , C )
+class kernelSVM:
+
+    def __init__( self , kernel , C=1.0 ):
+        self.P = None
+        self.X_sv = None
+        self.Y_sv = None
+        self.b = None
+        self.sv = None
+        self.C = C
         self.kernel = kernel
+        self.fig = plt.figure()
+        self.ims = []
 
-    def predict( self , X_train , Y_train , X ):
-        kernel = self.kernel
-        P , b = self.P , self.b
-        Y = np.zeros( X.shape[ 0 ] )
-        for i in range( X.shape[ 0 ] ):
-            pred_ = 0
-            for j in self.support_vectors_[0]:
-                pred_ += P[ j ] * Y_train[ j ] * kernel( X_train[ j ] , X[ i ] ) + b
-            Y[ i ] = pred_
+    def fit( self , X , Y , e=1e-6 , max_epochs=1e+3 ):
+        P = np.zeros_like( Y , dtype=np.float )
+        grad_D = np.ones_like( Y , dtype=np.float )
 
-        return Y
-
-    def _observe( self , X , Y ):
-        if self.observe_mode:
-            x1_plus = ( np.min( X[:,0] ) + np.max( X[:,0] ) ) * 0.25
-            x2_plus = ( np.min( X[:,1] ) + np.max( X[:,1] ) ) * 0.25
-            if X.ndim == 2:
-                x = np.arange( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus , 0.5 )
-                y = np.arange( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus , 0.5 )
-                xx , yy = np.meshgrid( x , y )
-                z = self._div_line( X , Y , xx , yy ).reshape( xx.shape )
-                plt.xlim( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus )
-                plt.ylim( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus )
-                im = plt.contourf( xx , yy , z , alpha=0.8 )
-                add_anim = im.collections
-                self.ims.append( add_anim )
-            elif X.ndim == 3:
-                pass
-
-    def _optimize( self , i , j , X , Y ):
-        # 重みの更新
-        kernel = self.kernel
-        P , E = self.P , self._E( Y )
-        P_i_delta = self._clip( i , j , Y , Y[ i ] * ( E[ j ] - E[ i ] ) / ( kernel( X[ i ] , X[ i ] ) + kernel( X[ j ] , X[ j ] ) - 2 * kernel( X[ i ] , X[ j ] ) ) )
-        P_j_delta = Y[ i ] * Y[ j ] * ( self.P[ i ] - P_i_delta )
-        P[ i ] += P_i_delta
-        P[ j ] += P_j_delta
-        w_ , b_ = 0 , 0
-        for n in range( Y.shape[ 0 ] ):
-            w_ += P[ n ] * Y[ n ] * X[ n ]
-            tmp_ = 0
-            for m in self.support_vectors_[0]: #mはサポートベクトルの数に変えなければならない
-                tmp_ += P[ m ] * Y[ m ] * kernel( X[ m ] , X[ n ] )
-            b_ += Y[ n ] - tmp_
-
-        self.w = w_
-        self.b = b_ / len( self.support_vectors_[0] )
-        self.P = P
-        self._observe( X , Y )
-
-    def _div_line( self , X , Y , xx , yy ):
+        x1_plus = ( np.min( X[:,0] ) + np.max( X[:,0] ) ) * 0.25
+        x2_plus = ( np.min( X[:,1] ) + np.max( X[:,1] ) ) * 0.25
+        x = np.arange( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus , 0.2 )
+        y = np.arange( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus , 0.2 )
+        xx , yy = np.meshgrid( x , y )
         pred_x = np.c_[ xx.ravel() , yy.ravel() ]
-        y = self.predict( X , Y , pred_x ).reshape( xx.shape )
-        return y
+        plt.xlim( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus )
+        plt.ylim( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus )
+        plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
+        plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
+
+        for i in range( int( max_epochs ) ):
+            print( i )
+            condition = Y * grad_D
+            i , j = self._lambda_choice( condition , P , Y , e )
+            if condition[ i ] <= condition[ j ] + e:
+                break
+            else:
+                A = self.C - P[ i ] if Y[ i ] == 1 else P[ i ]
+                B = P[ j ] if Y[ j ] == 1 else self.C - P[ j ]
+                gamma = min( A , B ,
+                 ( Y[ i ] * grad_D[ i ] - Y[ j ] * grad_D[ j ] ) / ( self.kernel( X[ i ] , X[ i ] ) - 2*self.kernel( X[ i ] , X[ j ] ) + self.kernel( X[ j ] , X[ j ] ) ) )
+
+                # ラグランジュ乗数を更新
+                P[ i ] += gamma * Y[ i ]
+                P[ j ] -= gamma * Y[ j ]
+
+                # 勾配を更新
+                grad_D -= gamma * Y * ( self.kernel( X , X[ i ] ) - self.kernel( X , X[ j ] ) )
+
+            self.b = ( condition[ i ] + condition[ j ] ) / 2
+            self.sv = np.where( P > e )
+            self.P = P[ self.sv ]
+            self.X_sv = X[ self.sv ]
+            self.Y_sv = Y[ self.sv ]
+
+            z = self.decision_function( pred_x ).reshape( xx.shape )
+
+            im = plt.contourf( xx , yy , z , alpha=0.8 )
+            plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
+            plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
+            add_anim = im.collections
+            self.ims.append( add_anim )
+
+
+    def decision_function( self , X ):
+        return self.kernel( X , self.X_sv ) @ ( self.P * self.Y_sv ) + self.b
+
+
+    def observe( self , save_path ):
+        ani = animation.ArtistAnimation( self.fig , self.ims , interval=200 )
+        if save_path == "":
+            print( "save_pathに保存先のパスを指定してください" )
+            sys.exit()
+        else:
+            ani.save( save_path , writer='imagemagick' )
+
+    def _lambda_choice( self , condition , P , Y , e ):
+        I_up = [ condition[ i ] if ( ( P[ i ] < self.C - e and Y[ i ] == 1 ) or ( P[ i ] > e and Y[ i ] == -1 ) ) else -float( "inf" ) for i in range( len( Y ) ) ]
+        I_low = [ condition[ i ] if ( ( P[ i ] < self.C - e and Y[ i ] == -1 ) or ( P[ i ] > e and Y[ i ] == 1 ) ) else float( "inf" ) for i in range( len( Y ) ) ]
+        i = np.argmax( I_up )
+        j = np.argmin( I_low )
+
+        return i , j
