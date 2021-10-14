@@ -1,5 +1,5 @@
-from svm import LinearSVM , kernelSVM
-from kernels import gausKernel , RBF
+from svm import linearSVM , kernelSVM
+from kernels import RBF , Linear
 from sklearn import datasets
 import sys
 import numpy as np
@@ -17,20 +17,21 @@ X = iris.data[:,:2]
 Y = (iris.target != 0)  * 2 - 1
 """
 
-
+"""
 #カーネル法を用いないと分類できないもの
 moon = datasets.make_moons( n_samples=300 , noise=0.2 , random_state=0 )
 X = moon[0]
 Y = moon[1] * 2 - 1
-
-
 """
+
+
+
 #線形分離可能なデータセット
-N = 100
+N = 200
 x1_1 = np.ones( N ) + 10 * np.random.random( N )
 x1_2 = np.ones( N ) + 10 * np.random.random( N )
-x2_1 = -np.ones( N ) -10 * np.random.random( N )
-x2_2 = -np.ones( N ) -10 * np.random.random( N )
+x2_1 = -np.ones( N ) - 10 * np.random.random( N )
+x2_2 = -np.ones( N ) - 10 * np.random.random( N )
 
 x1 = np.c_[ x1_1 , x1_2 ]
 x2 = np.c_[ x2_1 , x2_2 ]
@@ -38,13 +39,19 @@ x2 = np.c_[ x2_1 , x2_2 ]
 # データセットを行列の形に変換
 X = np.array( np.r_[ x1 , x2 ] )
 Y = np.array( np.r_[ np.ones( N ) , -np.ones( N ) ] )
-"""
 
 
 """
 学習
 """
+
+"""
 #svm = LinearSVM( observe_mode=True , C=10 )
-svm = kernelSVM( kernel=RBF( gamma=0.2 ) , C=1.0 )
+svm = kernelSVM( kernel=RBF( gamma=0.5 ) , C=1.0 )
 svm.fit( X , Y , max_epochs=200 )
-svm.observe( save_path="./graphs/kernelSVC.gif" )
+"""
+
+
+svm = linearSVM( C=float("inf") )
+svm.fit( X , Y , max_epochs=1000 , save_path="./graphs/softmargin.gif" )
+#svm.observe( save_path="./graphs/linearSVC.gif" )
