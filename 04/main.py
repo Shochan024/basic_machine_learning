@@ -25,7 +25,6 @@ Y = moon[1] * 2 - 1
 """
 
 
-
 #線形分離可能なデータセット
 N = 200
 x1_1 = np.ones( N ) + 10 * np.random.random( N )
@@ -51,7 +50,9 @@ svm = kernelSVM( kernel=RBF( gamma=0.5 ) , C=1.0 )
 svm.fit( X , Y , max_epochs=200 )
 """
 
+#svm = kernelSVM( kernel=RBF( gamma=0.5 ) , C=1.0 )
+#svm.fit( X , Y , max_epochs=200 )
 
 svm = linearSVM( C=float("inf") )
-svm.fit( X , Y , max_epochs=1000 , save_path="./graphs/softmargin.gif" )
+svm.fit( X , Y )
 #svm.observe( save_path="./graphs/linearSVC.gif" )
