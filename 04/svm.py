@@ -22,9 +22,15 @@ class linearSVM:
         self.x2_plus = None
 
     def fit( self , X , Y ):
+        """
+        ~ 学習メソッド ~
+
+        X <numpy> : 特徴量 < 行数 : サンプル数 , 列数 : 特徴の数 >
+        Y <numpy> : 教師データ
+        """
         self.P = np.zeros_like( Y ) #ラグランジュ乗数の数はトレーニングサンプル数と同じ数
         self.Y_hat = self._decision_function( X , Y )
-        self.E = self._E( Y , self.Y_hat )
+        self.E = self._E( Y , self.Y_hat ) # error cacheを計算しておく
         self.w = np.zeros( ( 1 , X.shape[ 1 ] ) )
 
         """
@@ -42,6 +48,7 @@ class linearSVM:
         numChanged = 0
         examineAll = True
 
+        # 更新量が1以上または全てをサーチするステータスがOnならloopを継続
         while numChanged > 0 or examineAll:
             numChanged = 0
             if examineAll:
@@ -68,15 +75,22 @@ class linearSVM:
         pass
 
     def _takeStep( self , i1 , i2 , X , Y , eps=1e-3 ):
+        """
+        ~ 更新メソッド ~
+
+        i1 <int>  : 1つめのラグランジュ乗数の添字
+        i2 <int>  : 2つめのラグランジュ乗数の添字
+        X <numpy> : 特徴量 < 行数 : サンプル数 , 列数 : 特徴の数 >
+        Y <numpy> : 教師データ
+        eps <float> : εのこと。誤差を許す範囲。論文ではε=10^-3とされている
+        """
         E = self.E
         changedStatus = False
         if i1 == i2:
             changedStatus = True
 
-        alph1 = self.P[ i1 ]
-        alph2 = self.P[ i2 ]
-        y1 = Y[ i1 ]
-        y2 = Y[ i2 ]
+        alph1 , alph2 = self.P[ i1 ] , self.P[ i2 ]
+        y1 , y2 = Y[ i1 ] , Y[ i2 ]
         E1 , E2 = E[ i1 ] , E[ i2 ]
         s = y1 * y2
 
@@ -94,9 +108,11 @@ class linearSVM:
             H = min( self.C , self.C - ( self.P[ i2 ] - self.P[ i1 ] ) )
 
         if eta > 0:
+            #etaが正の値なら、ラグランジュ乗数を普通に更新
             a2_new = alph2 + y2 * ( E1 - E2 ) / eta
             a2 = self._clip( Y , i1 , i2 , a2_new )
         else:
+            #etaが負の場合、ヘッセ行列が正定値ではないので少し特別な処理をする
             Lobj , Hobj = self._objective_function( X , Y , i1 , i2 )
             if Lobj < Hobj - eps: #ε = 10^-3までの誤差を許す
                 a2 = L
@@ -109,6 +125,7 @@ class linearSVM:
             # 更新量が非常に小さい場合はFalseを返す
             changedStatus = False
         else:
+            # 更新量が小さくない場合は、二つ目のラグランジュ乗数を更新する
             a1 = alph1 + s * ( alph2 - a2 )
 
             # Update threshold to reflect change in Lagrange multipliers
@@ -136,10 +153,18 @@ class linearSVM:
             self._plot( self.x1_plot , self.x2_plot , X , Y )
 
 
+        # 更新された場合はTrueを返す
         return changedStatus
 
 
     def _examineExample( self , i2 , X , Y ):
+        """
+        ~takeStepを各サンプルに実行するためのメソッド~
+
+        i2 <int>  : 二つ目のラグランジュ乗数の添字
+        Y <numpy> : 教師データ
+        """
+
         E , Y_hat = self.E , self.Y_hat
         changedStep = False
         subscripts = []
@@ -161,15 +186,24 @@ class linearSVM:
             if len( subscripts ) == 0:
                 subscripts += [ n for n in np.where( ( ( self.P > 0 ) & ( self.P < self.C ) ) )[ 0 ] if self._takeStep( n , i2 , X , Y ) ]
 
-            # loop over all possible i1, starting at a random point
+            # 二つ目のラグランジュ乗数であるi1を全てのトレーニングサンプルからサーチする
             if len( subscripts ) == 0:
                 subscripts += [ n for n in range( len( self.P ) ) if self._takeStep( n , i2 , X , Y ) ]
 
 
+        # 更新された数をリターンする
         return len( subscripts )
 
 
     def _clip( self , Y , i1 , i2 , P_new ):
+        """
+        ~更新後のラグランジュ乗数をクリップするメソッド~
+
+        Y <numpy> : 教師データ
+        i1 <int>  : 一つ目のラグランジュ乗数の添字
+        i2 <int>  : 二つ目のラグランジュ乗数の添字
+        P_new <float> : 更新されたラグランジュ乗数
+        """
 
         if Y[ i1 ] == Y[ i2 ]:
             L = max( 0 , self.P[ i2 ] + self.P[ i1 ] - self.C )
@@ -186,6 +220,16 @@ class linearSVM:
         return P_new
 
     def _objective_function( self , X , Y , i1 , i2 ):
+        """
+        ~ 更新メソッド ~
+
+        X <numpy> : 特徴量
+        Y <numpy> : 教師
+        i1 <int> : 1つめのラグランジュ乗数の添字
+        i2 <int> : 2つめのラグランジュ乗数の添字
+        """
+
+        # LとHの時点での目的関数の値を返す
         E , P , C , b = self.E , self.P , self.C , self.b
         y1 , y2 = Y[ i1 ] , Y[ i2 ]
         E1 , E2 = E[ i1 ] , E[ i2 ]
@@ -197,6 +241,7 @@ class linearSVM:
         f1 = y1 * ( E1 + b ) - P[ i1 ] * k11 - s * P[ i2 ] * k12
         f2 = y2 * ( E2 + b ) - s * P[ i1 ] * k12 - P[ i2 ] * k22
 
+        # LとHを取得
         if Y[ i1 ] == Y[ i2 ]:
             L = max( 0 , P[ i2 ] + P[ i1 ] - C )
             H = min( C , P[ i2 ] + P[ i1 ] )
@@ -208,6 +253,7 @@ class linearSVM:
         L1 = P[ i1 ] + s * ( P[ i2 ] - L )
         H1 = P[ i1 ] + s * ( P[ i2 ] - H )
 
+        # 目的関数の値を計算する
         Obj_L = L1*f1 + L*f2 + 1/2 * L1**2 * k11 + 1/2 * L**2 * k22 + s*L*L1*k12
         Obj_H = H1*f1 + H*f2 + 1/2 * H1**2 * k11 + 1/2 * H**2 * k22 + s*H*H1*k12
 
@@ -216,6 +262,13 @@ class linearSVM:
 
 
     def _decision_function( self , X , Y ):
+        """
+        ~ 決定境界を出力するメソッド ~
+
+        X <numpy> : 特徴量 < 行数 : サンプル数 , 列数 : 特徴の数 >
+        Y <numpy> : 教師データ
+        """
+        # 決定境界を出力する
         X_sv , Y_sv , P_sv , b , sv = X , Y , self.P , self.b , self.sv
         if len( sv ) > 0:
             X_sv , Y_sv , P_sv = X[ sv ] , Y[ sv ] , P_sv[ sv ]
@@ -225,6 +278,13 @@ class linearSVM:
 
 
     def _E( self , Y , Y_hat ):
+        """
+        ~ 誤差を出力するメソッド ~
+        ※損失関数ではない点に注意
+
+        Y <numpy> : 教師データ
+        Y_hat <numpy> : 推定結果
+        """
         return Y_hat - Y
 
     def _plot( self , x1_plot , x2_plot , X , Y ):
