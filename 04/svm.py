@@ -16,12 +16,28 @@ class linearSVM:
         self.P = None
         self.Y_hat = None
         self.tol = 1e-3
+        self.fig = plt.figure()
+        self.ims = []
+        self.x1_plus = None
+        self.x2_plus = None
 
     def fit( self , X , Y ):
         self.P = np.zeros_like( Y ) #ラグランジュ乗数の数はトレーニングサンプル数と同じ数
         self.Y_hat = self._decision_function( X , Y )
         self.E = self._E( Y , self.Y_hat )
         self.w = np.zeros( ( 1 , X.shape[ 1 ] ) )
+
+        """
+        plot用
+        """
+        x1_plus = ( np.min( X[:,0] ) + np.max( X[:,0] ) ) * 0.25
+        x2_plus = ( np.min( X[:,1] ) + np.max( X[:,1] ) ) * 0.25
+        self.x1_plot = np.arange( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus , 0.2 )
+        self.x2_plot = np.arange( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus , 0.2 )
+        plt.xlim( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus )
+        plt.ylim( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus )
+        plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
+        plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
 
         numChanged = 0
         examineAll = True
@@ -36,33 +52,15 @@ class linearSVM:
                     numChanged += self._examineExample( i , X , Y )
 
             if examineAll:
+                # もし全てのサンプルをサーチするステータスがOnになっていたら、それをOffにする
                 examineAll = False
             elif numChanged == 0:
+                # 一部のサンプルだけをみても更新量がゼロなら、全てのサンプルをサーチする
                 examineAll = True
 
 
-
-        x1_plus = ( np.min( X[:,0] ) + np.max( X[:,0] ) ) * 0.25
-        x2_plus = ( np.min( X[:,1] ) + np.max( X[:,1] ) ) * 0.25
-        x1_plot = np.arange( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus , 0.2 )
-        x2_plot = np.arange( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus , 0.2 )
-        #plt.xlim( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus )
-        #plt.ylim( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus )
-        plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
-        plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
-
-        w_ = self.w.reshape( -1 )
-        #print( w_ , self.b )
-        y1 = ( -x1_plot * w_[0] - self.b ) / w_[1]
-        y2 = ( 1 -x1_plot * w_[0] - self.b ) / w_[1]
-        y3 = ( -1 -x1_plot * w_[0] - self.b ) / w_[1]
-        image1 = plt.plot( x1_plot , y1 , color='lightskyblue' )
-        image2 = plt.plot( x1_plot , y2 , color='yellow' )
-        image3 = plt.plot( x1_plot , y3 , color='yellow' )
-        area = plt.fill_between( x1_plot , y2 , y3 , facecolor='y' , color="blue" , alpha=0.3 )
-
-        plt.show()
-
+        ani = animation.ArtistAnimation( self.fig , self.ims , interval=200 )
+        ani.save( "graphs/softmargin.gif" , writer='imagemagick' )
 
 
 
@@ -129,11 +127,13 @@ class linearSVM:
 
             # Update weight vector to reflect change in a1 & a2, if SVM is linear
             self.w += y1 * ( a1 - alph1 ) * X[ i1 ] + y2 * ( a2 - alph2 ) * X[ i2 ]
-            print( E1 , y1 , ( a1 - alph1 ) , k11 , self.b )
 
             # Update error cache using new Lagrange multipliers
             self.Y_hat = self._decision_function( X , Y )
             self.E = self._E( Y , self.Y_hat )
+
+            # Plot
+            self._plot( self.x1_plot , self.x2_plot , X , Y )
 
 
         return changedStatus
@@ -226,6 +226,17 @@ class linearSVM:
 
     def _E( self , Y , Y_hat ):
         return Y_hat - Y
+
+    def _plot( self , x1_plot , x2_plot , X , Y ):
+        w_ = self.w.reshape( -1 )
+        y1 = ( -x1_plot * w_[0] - self.b ) / w_[1]
+        y2 = ( 1 -x1_plot * w_[0] - self.b ) / w_[1]
+        y3 = ( -1 -x1_plot * w_[0] - self.b ) / w_[1]
+        image1 = plt.plot( x1_plot , y1 , color='lightskyblue' )
+        image2 = plt.plot( x1_plot , y2 , color='yellow' )
+        image3 = plt.plot( x1_plot , y3 , color='yellow' )
+        area = plt.fill_between( x1_plot , y2 , y3 , facecolor='y' , color="blue" , alpha=0.3 )
+        self.ims.append( image1 + image2 + image3 + [ area ] )
 
 
 

@@ -53,6 +53,6 @@ svm.fit( X , Y , max_epochs=200 )
 #svm = kernelSVM( kernel=RBF( gamma=0.5 ) , C=1.0 )
 #svm.fit( X , Y , max_epochs=200 )
 
-svm = linearSVM( C=float("inf") )
+svm = linearSVM( C=float("inf") ) #softmarginはC=73
 svm.fit( X , Y )
 #svm.observe( save_path="./graphs/linearSVC.gif" )
