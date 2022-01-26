@@ -302,83 +302,57 @@ class linearSVM:
 
 class kernelSVM:
 
-    def __init__( self , kernel , C=float("inf") ):
-        self.P = None
-        self.X_sv = None
-        self.Y_sv = None
-        self.b = None
-        self.sv = None
+    def __init__( self , C=float("inf") ):
         self.C = C
-        self.kernel = kernel
-        self.fig = plt.figure()
-        self.ims = []
+        self.sv = None
+        self.yg = None
+        self.alpha = None
+        self.b = None
 
-    def fit( self , X , Y , e=1e-2  , max_epochs=1e+3 ):
-        P = np.zeros_like( Y , dtype=np.float )
-        grad_D = np.ones_like( Y , dtype=np.float )
 
-        # Plot用
-        x1_plus = ( np.min( X[:,0] ) + np.max( X[:,0] ) ) * 0.25
-        x2_plus = ( np.min( X[:,1] ) + np.max( X[:,1] ) ) * 0.25
-        x = np.arange( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus , 0.2 )
-        y = np.arange( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus , 0.2 )
-        xx , yy = np.meshgrid( x , y )
-        pred_x = np.c_[ xx.ravel() , yy.ravel() ]
-        plt.xlim( np.min( X[:,0] ) - x1_plus , np.max( X[:,0] ) + x1_plus )
-        plt.ylim( np.min( X[:,1] ) - x2_plus , np.max( X[:,1] ) + x2_plus )
+    def fit( self , X , Y , max_epoch=1e6 , tol=1e-3 ):
+        alpha = np.zeros_like( Y , dtype=np.float )
+        grad = np.ones_like( Y , dtype=np.float )
 
-        for i in range( int( max_epochs ) ):
-            condition = Y * grad_D
-            i , j = self._lambda_choice( condition , P , Y , e )
-            if condition[ i ] <= condition[ j ] + e:
+        for _ in range( int( max_epoch ) ):
+            yg = grad * Y # アダマール積
+            i , j = self.__mvp( Y , alpha , yg , tol )
+            # 停止条件
+            if yg[ i ] <= yg[ j ] + tol:
+                print( "収束しました" )
                 break
-            else:
-                A = self.C - P[ i ] if Y[ i ] == 1 else P[ i ]
-                B = P[ j ] if Y[ j ] == 1 else self.C - P[ j ]
-                gamma = min( A , B ,
-                 ( Y[ i ] * grad_D[ i ] - Y[ j ] * grad_D[ j ] ) / ( self.kernel( X[ i ] , X[ i ] ) - 2*self.kernel( X[ i ] , X[ j ] ) + self.kernel( X[ j ] , X[ j ] ) ) )
 
-                # ラグランジュ乗数を更新
-                P[ i ] += gamma * Y[ i ]
-                P[ j ] -= gamma * Y[ j ]
+            A = self.C - alpha[ i ] if Y[ i ] == 1 else alpha[ i ]
+            B = alpha[ j ] if Y[ j ] == 1 else self.C - alpha[ j ]
 
-                # 勾配を更新
-                grad_D -= gamma * Y * ( self.kernel( X , X[ i ] ) - self.kernel( X , X[ j ] ) )
+            # 更新幅のλを計算 lambdaは予約語であるため、deltaという変数名を使用する
+            eta = X[ i ] @ X[ i ] - 2*X[ i ] @ X[ j ] + X[ j ] @ X[ j ]
+            delta = min( A , B , ( yg[ i ] - yg[ j ] ) / eta )
 
+            # ラグランジュ乗数を更新
+            alpha[ i ] += delta * Y[ i ]
+            alpha[ j ] -= delta * Y [ j ]
 
-            self.b = ( condition[ i ] + condition[ j ] ) / 2
-            self.sv = np.where( P > e )
-            self.P = P[ self.sv ]
+            # 勾配を計算
+            grad -= delta*( ( X @ X[ i ] ) - ( X @ X[ j ] ) )
+
+            # 分離直線の切片を計算
+            self.b = ( yg[ i ] + yg[ j ] ) / 2
+
+            # サポートベクトルを取得
+            self.sv = np.where( alpha > tol )
+            self.alpha = alpha[ self.sv ]
             self.X_sv = X[ self.sv ]
             self.Y_sv = Y[ self.sv ]
 
-            z = self.decision_function( pred_x ).reshape( xx.shape )
-
-            im = plt.contourf( xx , yy , z , alpha=0.8 )
-            plt.scatter( X[Y == -1][:, 0], X[Y == -1][:, 1], color='lightskyblue' )
-            plt.scatter( X[Y == 1][:, 0], X[Y == 1][:, 1], color='sandybrown' )
-            add_anim = im.collections
-            self.ims.append( add_anim )
-
-
-    def decision_function( self , X ):
-        return self.kernel( X , self.X_sv ) @ ( self.P * self.Y_sv ) + self.b
 
 
 
-    def observe( self , save_path ):
-        ani = animation.ArtistAnimation( self.fig , self.ims , interval=200 )
-        if save_path == "":
-            print( "save_pathに保存先のパスを指定してください" )
-            sys.exit()
-        else:
-            ani.save( save_path , writer='imagemagick' )
+    def __mvp( self , Y , alpha , yg , tol ):
+        Iup = [ yg[ i ] if ( ( Y[ i ] == 1 and alpha[ i ] > tol ) or ( Y[ i ] == -1 and alpha[ i ] < self.C - tol ) ) else float("inf") for i in range( len( Y ) ) ]
+        Idown = [ yg[ i ] if ( ( Y[ i ] == -1 and alpha[ i ] > tol ) or ( Y[ i ] == 1 and alpha[ i ] < self.C - tol ) ) else float("-inf") for i in range( len( Y ) ) ]
 
-    def _lambda_choice( self , condition , P , Y , e ):
-        I_up = [ condition[ i ] if ( ( P[ i ] < self.C - e and Y[ i ] == 1 ) or ( P[ i ] > e and Y[ i ] == -1 ) ) else -float( "inf" ) for i in range( len( Y ) ) ]
-        I_low = [ condition[ i ] if ( ( P[ i ] < self.C - e and Y[ i ] == -1 ) or ( P[ i ] > e and Y[ i ] == 1 ) ) else float( "inf" ) for i in range( len( Y ) ) ]
-        i = np.argmax( I_up )
-        j = np.argmin( I_low )
-
+        i = np.argmax( Idown )
+        j = np.argmin( Iup )
 
         return i , j

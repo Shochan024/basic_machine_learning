@@ -17,13 +17,13 @@ X = iris.data[:,:2]
 Y = (iris.target != 0)  * 2 - 1
 """
 
-"""
+
 #カーネル法を用いないと分類できないもの
+"""
 moon = datasets.make_moons( n_samples=300 , noise=0.2 , random_state=0 )
 X = moon[0]
 Y = moon[1] * 2 - 1
 """
-
 
 #線形分離可能なデータセット
 N = 200
@@ -50,9 +50,9 @@ svm = kernelSVM( kernel=RBF( gamma=0.5 ) , C=1.0 )
 svm.fit( X , Y , max_epochs=200 )
 """
 
-#svm = kernelSVM( kernel=RBF( gamma=0.5 ) , C=1.0 )
-#svm.fit( X , Y , max_epochs=200 )
-
-svm = linearSVM( C=float("inf") ) #softmarginはC=73
+svm = kernelSVM()
 svm.fit( X , Y )
+
+#svm = linearSVM( C=float("inf") ) #softmarginはC=73
+#svm.fit( X , Y )
 #svm.observe( save_path="./graphs/linearSVC.gif" )
